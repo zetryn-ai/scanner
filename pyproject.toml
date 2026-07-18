@@ -9,6 +9,13 @@ dependencies = [
     "pydantic>=2.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "fakeredis>=2.23",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
