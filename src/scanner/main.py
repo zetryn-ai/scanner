@@ -5,6 +5,7 @@ import sys
 import time
 
 from scanner.config import PUBLISHER_BUFFER_SIZE, load_redis_url
+from scanner.geckoterminal import run_geckoterminal_scanner
 from scanner.publisher import Publisher
 from scanner.pumpportal import run_pumpportal_scanner
 
@@ -37,7 +38,10 @@ async def _main() -> None:
 
     publisher = Publisher(redis_url, buffer_size=PUBLISHER_BUFFER_SIZE)
     try:
-        await run_pumpportal_scanner(publisher)
+        await asyncio.gather(
+            run_pumpportal_scanner(publisher),
+            run_geckoterminal_scanner(publisher),
+        )
     finally:
         await publisher.close()
 
