@@ -7,6 +7,7 @@ EVENT_TYPE_MIGRATION = "migration"
 
 SOURCE_PUMPPORTAL = "pumpportal"
 SOURCE_GECKOTERMINAL = "geckoterminal"
+SOURCE_BIRDEYE = "birdeye"
 
 
 class ScannerEvent(BaseModel):
