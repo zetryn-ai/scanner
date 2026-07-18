@@ -90,3 +90,100 @@ def test_parse_included_item_missing_address_returns_none():
 def test_parse_non_dict_pool_returns_none():
     assert parse_geckoterminal_pool("not a dict", SAMPLE_INCLUDED_BY_ID) is None
     assert parse_geckoterminal_pool(None, SAMPLE_INCLUDED_BY_ID) is None
+
+
+from scanner.publisher import Publisher
+
+
+class _RecordingPublisher(Publisher):
+    def __init__(self):
+        self.published = []
+
+    async def publish(self, event):
+        self.published.append(event)
+
+
+class _FakeResponse:
+    def __init__(self, payload: dict, status_ok: bool = True):
+        self._payload = payload
+        self._status_ok = status_ok
+
+    def raise_for_status(self) -> None:
+        if not self._status_ok:
+            raise RuntimeError("simulated HTTP error")
+
+    def json(self) -> dict:
+        return self._payload
+
+
+async def _no_op_sleep(_seconds: float) -> None:
+    return None
+
+
+async def test_run_geckoterminal_scanner_publishes_parsed_pools():
+    payload = {"data": [SAMPLE_POOL], "included": list(SAMPLE_INCLUDED_BY_ID.values())}
+
+    async def fake_http_get_fn(_url, _params):
+        return _FakeResponse(payload)
+
+    publisher = _RecordingPublisher()
+
+    from scanner.geckoterminal import run_geckoterminal_scanner
+
+    await run_geckoterminal_scanner(
+        publisher,
+        http_get_fn=fake_http_get_fn,
+        max_iterations=1,
+        _sleep_fn=_no_op_sleep,
+    )
+
+    assert len(publisher.published) == 1
+    assert publisher.published[0].mint == "6cxi1YrhejBBFg6rRQGj3F3KDUoUZpLPYXarQwL2pump"
+
+
+async def test_run_geckoterminal_scanner_skips_unparseable_pools_without_crashing():
+    payload = {
+        "data": [{"id": "solana_broken", "attributes": {}, "relationships": {}}],
+        "included": [],
+    }
+
+    async def fake_http_get_fn(_url, _params):
+        return _FakeResponse(payload)
+
+    publisher = _RecordingPublisher()
+
+    from scanner.geckoterminal import run_geckoterminal_scanner
+
+    await run_geckoterminal_scanner(
+        publisher,
+        http_get_fn=fake_http_get_fn,
+        max_iterations=1,
+        _sleep_fn=_no_op_sleep,
+    )
+
+    assert publisher.published == []
+
+
+async def test_run_geckoterminal_scanner_continues_after_http_error():
+    call_count = 0
+
+    async def fake_http_get_fn(_url, _params):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return _FakeResponse({}, status_ok=False)
+        return _FakeResponse({"data": [SAMPLE_POOL], "included": list(SAMPLE_INCLUDED_BY_ID.values())})
+
+    publisher = _RecordingPublisher()
+
+    from scanner.geckoterminal import run_geckoterminal_scanner
+
+    await run_geckoterminal_scanner(
+        publisher,
+        http_get_fn=fake_http_get_fn,
+        max_iterations=2,
+        _sleep_fn=_no_op_sleep,
+    )
+
+    assert call_count == 2
+    assert len(publisher.published) == 1

@@ -1,8 +1,17 @@
+import asyncio
+import logging
 from datetime import datetime, timezone
+from typing import Awaitable, Callable
+
+import httpx
 
 from scanner.events import EVENT_TYPE_NEW_TOKEN, SOURCE_GECKOTERMINAL, ScannerEvent
+from scanner.publisher import Publisher
+
+logger = logging.getLogger("scanner.geckoterminal")
 
 NEW_POOLS_URL = "https://api.geckoterminal.com/api/v2/networks/solana/new_pools"
+POLL_INTERVAL_SECONDS = 30.0
 
 
 def parse_geckoterminal_pool(pool: object, included_by_id: dict) -> ScannerEvent | None:
@@ -57,3 +66,50 @@ def parse_geckoterminal_pool(pool: object, included_by_id: dict) -> ScannerEvent
         raw=pool,
         received_at=datetime.now(timezone.utc).isoformat(),
     )
+
+
+async def _default_sleep(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+async def _default_http_get_fn(url: str, params: dict) -> httpx.Response:
+    async with httpx.AsyncClient() as client:
+        return await client.get(url, params=params)
+
+
+async def run_geckoterminal_scanner(
+    publisher: Publisher,
+    *,
+    http_get_fn: Callable[[str, dict], Awaitable[object]] | None = None,
+    max_iterations: int | None = None,
+    _sleep_fn: Callable[[float], Awaitable[None]] = _default_sleep,
+) -> None:
+    """Poll GeckoTerminal's Solana new_pools endpoint every
+    POLL_INTERVAL_SECONDS, publishing a ScannerEvent per pool.
+
+    A failed poll cycle (HTTP error, malformed JSON, etc.) is logged and
+    skipped — the loop always waits for the next interval and keeps
+    running, it never raises out of this function on a bad response.
+
+    max_iterations bounds the number of poll cycles for testing; it is
+    None (unbounded) in production.
+    """
+    http_get_fn = http_get_fn or _default_http_get_fn
+    iterations = 0
+
+    while max_iterations is None or iterations < max_iterations:
+        iterations += 1
+        try:
+            response = await http_get_fn(NEW_POOLS_URL, {"include": "base_token,quote_token"})
+            response.raise_for_status()
+            payload = response.json()
+            included_by_id = {item["id"]: item for item in payload.get("included", [])}
+            for pool in payload.get("data", []):
+                event = parse_geckoterminal_pool(pool, included_by_id)
+                if event is None:
+                    continue
+                await publisher.publish(event)
+        except Exception as exc:
+            logger.warning("geckoterminal poll failed (%s), will retry next interval", exc)
+
+        await _sleep_fn(POLL_INTERVAL_SECONDS)
