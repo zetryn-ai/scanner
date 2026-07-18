@@ -4,6 +4,7 @@ import logging
 import sys
 import time
 
+from scanner.birdeye import run_birdeye_scanner
 from scanner.config import PUBLISHER_BUFFER_SIZE, load_redis_url
 from scanner.geckoterminal import run_geckoterminal_scanner
 from scanner.publisher import Publisher
@@ -41,6 +42,7 @@ async def _main() -> None:
         await asyncio.gather(
             run_pumpportal_scanner(publisher),
             run_geckoterminal_scanner(publisher),
+            run_birdeye_scanner(publisher),
         )
     finally:
         await publisher.close()
