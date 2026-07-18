@@ -1,12 +1,17 @@
 from datetime import datetime, timezone
-from typing import Literal
 
 from pydantic import BaseModel
 
+EVENT_TYPE_NEW_TOKEN = "new_token"
+EVENT_TYPE_MIGRATION = "migration"
+
+SOURCE_PUMPPORTAL = "pumpportal"
+SOURCE_GECKOTERMINAL = "geckoterminal"
+
 
 class ScannerEvent(BaseModel):
-    event_type: Literal["new_token", "migration"]
-    source: Literal["pumpportal"]
+    event_type: str
+    source: str
     mint: str
     raw: dict
     received_at: str
@@ -15,9 +20,9 @@ class ScannerEvent(BaseModel):
 # PumpPortal's txType field values that map to each event_type we care about.
 # Any other txType (e.g. "buy", "sell", "trade") is not relevant to this
 # phase and is intentionally ignored, not an error.
-_TX_TYPE_TO_EVENT_TYPE: dict[str, Literal["new_token", "migration"]] = {
-    "create": "new_token",
-    "migrate": "migration",
+_TX_TYPE_TO_EVENT_TYPE: dict[str, str] = {
+    "create": EVENT_TYPE_NEW_TOKEN,
+    "migrate": EVENT_TYPE_MIGRATION,
 }
 
 
@@ -42,7 +47,7 @@ def parse_pumpportal_message(payload: object) -> ScannerEvent | None:
 
     return ScannerEvent(
         event_type=event_type,
-        source="pumpportal",
+        source=SOURCE_PUMPPORTAL,
         mint=mint,
         raw=payload,
         received_at=datetime.now(timezone.utc).isoformat(),

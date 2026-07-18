@@ -60,3 +60,32 @@ def test_parse_non_dict_returns_none():
     assert parse_pumpportal_message("not a dict") is None
     assert parse_pumpportal_message(None) is None
     assert parse_pumpportal_message([1, 2, 3]) is None
+
+
+def test_event_type_constants_match_expected_values():
+    from scanner.events import (
+        EVENT_TYPE_MIGRATION,
+        EVENT_TYPE_NEW_TOKEN,
+        SOURCE_GECKOTERMINAL,
+        SOURCE_PUMPPORTAL,
+    )
+
+    assert EVENT_TYPE_NEW_TOKEN == "new_token"
+    assert EVENT_TYPE_MIGRATION == "migration"
+    assert SOURCE_PUMPPORTAL == "pumpportal"
+    assert SOURCE_GECKOTERMINAL == "geckoterminal"
+
+
+def test_scanner_event_accepts_any_string_event_type_and_source():
+    # event_type/source are now open str fields, not closed Literals — a
+    # future source (e.g. a third scanner) must be representable without
+    # a schema change.
+    event = ScannerEvent(
+        event_type="price_update",
+        source="some_future_source",
+        mint="ABC123mintaddress",
+        raw={},
+        received_at="2026-07-18T00:00:00+00:00",
+    )
+    assert event.event_type == "price_update"
+    assert event.source == "some_future_source"
