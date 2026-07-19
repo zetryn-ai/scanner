@@ -102,6 +102,35 @@ async def test_run_birdeye_scanner_skips_entirely_without_api_key():
     assert publisher.published == []
 
 
+async def test_run_birdeye_scanner_sends_router_proxy_url_and_bearer_auth():
+    from scanner.config import ROUTER_BIRDEYE_PROXY_URL
+
+    captured = {}
+
+    async def fake_http_get_fn(url, headers, params):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["params"] = params
+        return _FakeResponse({"success": True, "data": {"items": [SAMPLE_ITEM]}})
+
+    publisher = _RecordingPublisher()
+
+    from scanner.birdeye import run_birdeye_scanner
+
+    await run_birdeye_scanner(
+        publisher,
+        api_key="fake-router-key",
+        http_get_fn=fake_http_get_fn,
+        max_iterations=1,
+        _sleep_fn=_no_op_sleep,
+    )
+
+    assert captured["url"] == ROUTER_BIRDEYE_PROXY_URL
+    assert captured["headers"]["Authorization"] == "Bearer fake-router-key"
+    assert captured["headers"]["x-chain"] == "solana"
+    assert "X-API-KEY" not in captured["headers"]
+
+
 async def test_run_birdeye_scanner_publishes_parsed_items():
     payload = {"success": True, "data": {"items": [SAMPLE_ITEM]}}
 
@@ -114,7 +143,7 @@ async def test_run_birdeye_scanner_publishes_parsed_items():
 
     await run_birdeye_scanner(
         publisher,
-        api_key="fake-test-key",
+        api_key="fake-router-key",
         http_get_fn=fake_http_get_fn,
         max_iterations=1,
         _sleep_fn=_no_op_sleep,
@@ -140,7 +169,7 @@ async def test_run_birdeye_scanner_continues_after_http_error():
 
     await run_birdeye_scanner(
         publisher,
-        api_key="fake-test-key",
+        api_key="fake-router-key",
         http_get_fn=fake_http_get_fn,
         max_iterations=2,
         _sleep_fn=_no_op_sleep,
