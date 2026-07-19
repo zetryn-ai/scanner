@@ -20,9 +20,9 @@ def load_pumpportal_api_key() -> str | None:
     return os.environ.get("PUMPPORTAL_API_KEY") or None
 
 
-BIRDEYE_NEW_LISTING_URL = "https://public-api.birdeye.so/defi/v2/tokens/new_listing"
+ROUTER_BIRDEYE_PROXY_URL = "https://apirouter.lemacore.com/proxy/birdeye/defi/v2/tokens/new_listing"
 BIRDEYE_POLL_INTERVAL_SECONDS = 30.0
 
 
-def load_birdeye_api_key() -> str | None:
-    return os.environ.get("BIRDEYE_API_KEY") or None
+def load_router_api_key() -> str | None:
+    return os.environ.get("ROUTER_API_KEY") or None
