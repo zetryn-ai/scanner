@@ -1,0 +1,5 @@
+[
+  {"name": "birdeye-only", "source_allowlist": ["birdeye"]},
+  {"name": "launches", "event_types": ["new_token"]},
+  {"name": "everything"}
+]
