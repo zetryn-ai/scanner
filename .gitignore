@@ -7,3 +7,5 @@ __pycache__/
 
 # commit-as
 commit-as.sh
+# runtime strategy config (copy from strategies.example.json)
+strategies.json
