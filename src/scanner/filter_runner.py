@@ -61,7 +61,15 @@ async def run_filter(
     while max_batches is None or batches < max_batches:
         batches += 1
         streams_arg = {stream: ">" for stream in source_streams}
-        response = await redis_client.xreadgroup(group, consumer, streams_arg, count=100, block=block_ms)
+        try:
+            response = await redis_client.xreadgroup(group, consumer, streams_arg, count=100, block=block_ms)
+        except Exception as exc:
+            # A blocking read that returns nothing within block_ms surfaces as a
+            # TimeoutError on a real client — that's the normal "idle stream"
+            # case, not a failure. Log at debug and treat as an empty batch so
+            # the loop keeps running instead of crashing the process.
+            logger.debug("xreadgroup returned no data (%s), continuing", exc)
+            continue
         if not response:
             continue
 

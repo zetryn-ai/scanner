@@ -84,3 +84,35 @@ async def test_forwarded_event_preserves_fields(fake_redis):
     _id, fields = entries[0]
     assert fields[b"mint"] == b"MINTkeep"
     assert fields[b"source"] == b"birdeye"
+
+
+class _TimeoutOnceRedis:
+    """Wraps a fakeredis client so the first xreadgroup raises a
+    TimeoutError (as a real blocking read does when the stream is idle),
+    then delegates normally. Proves run_filter treats a blocking-read
+    timeout as an empty batch instead of crashing."""
+
+    def __init__(self, inner):
+        self._inner = inner
+        self._raised = False
+
+    async def xreadgroup(self, *args, **kwargs):
+        if not self._raised:
+            self._raised = True
+            import redis.exceptions
+
+            raise redis.exceptions.TimeoutError("simulated blocking read timeout")
+        return await self._inner.xreadgroup(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+async def test_blocking_read_timeout_is_not_fatal(fake_redis):
+    await fake_redis.xadd("scanner:events:new_token", event_fields(source="birdeye"))
+    wrapped = _TimeoutOnceRedis(fake_redis)
+
+    # First batch times out (no crash), second batch reads the event.
+    await run_filter(wrapped, [Strategy(name="everything")], max_batches=2)
+
+    assert await fake_redis.xlen("scanner:strategy:everything") == 1
